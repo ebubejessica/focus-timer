@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pomodoro</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+ 
+    :root {
+      --bg: #f5f0e8;
+      --surface: #ede8df;
+      --border: #d8d1c4;
+      --text: #1a1814;
+      --text-muted: #7a7468;
+      --focus-accent: #c0392b;
+      --break-accent: #27ae60;
+      --accent: var(--focus-accent);
+      --accent-light: #f9e8e7;
+      --radius: 20px;
+      --transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+ 
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+ 
+    /* Subtle grain texture */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+ 
+    .card {
+      position: relative;
+      z-index: 1;
+      background: #faf7f2;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 52px 56px 48px;
+      width: min(460px, 92vw);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.04), 0 12px 40px rgba(0,0,0,0.08);
+    }
+ 
+    /* Mode Toggle */
+    .mode-toggle {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      padding: 4px;
+      margin-bottom: 44px;
+      position: relative;
+    }
+ 
+    .mode-btn {
+      flex: 1;
+      padding: 9px 0;
+      border: none;
+      background: transparent;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      letter-spacing: 0.02em;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 100px;
+      transition: color var(--transition);
+      position: relative;
+      z-index: 1;
+    }
+ 
+    .mode-btn.active { color: var(--text); }
+ 
+    .mode-slider {
+      position: absolute;
+      top: 4px;
+      bottom: 4px;
+      width: calc(50% - 4px);
+      background: #faf7f2;
+      border: 1px solid var(--border);
+      border-radius: 100px;
+      transition: left var(--transition), background var(--transition);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      left: 4px;
+    }
+ 
+    .mode-slider.break { left: calc(50%); }
+ 
+    /* Timer Display */
+    .timer-area {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+ 
+    .mode-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+      transition: color var(--transition);
+      display: block;
+      opacity: 0.9;
+    }
+ 
+    .timer-display {
+      font-family: 'DM Mono', monospace;
+      font-size: clamp(72px, 16vw, 96px);
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 8px;
+      transition: color var(--transition);
+      user-select: none;
+    }
+ 
+    /* Progress Bar */
+    .progress-wrap {
+      height: 3px;
+      background: var(--border);
+      border-radius: 100px;
+      overflow: hidden;
+      margin-bottom: 36px;
+    }
+ 
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 100px;
+      width: 100%;
+      transition: width 1s linear, background var(--transition);
+      transform-origin: left;
+    }
+ 
+    /* Controls */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 36px;
+    }
+ 
+    .btn {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      border-radius: 100px;
+      transition: all 0.2s ease;
+      letter-spacing: 0.01em;
+    }
+ 
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      font-size: 15px;
+      padding: 14px 44px;
+      flex: 1;
+      max-width: 220px;
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--accent) 30%, transparent);
+      transition: background var(--transition), box-shadow var(--transition), transform 0.15s ease;
+    }
+ 
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 40%, transparent);
+    }
+ 
+    .btn-primary:active { transform: translateY(0); }
+ 
+    .btn-icon {
+      width: 46px;
+      height: 46px;
+      background: var(--surface);
+      color: var(--text-muted);
+      font-size: 16px;
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+ 
+    .btn-icon:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+ 
+    /* Session Counter */
+    .sessions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+ 
+    .sessions-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+ 
+    .sessions-dots {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+ 
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background var(--transition), transform 0.3s ease;
+    }
+ 
+    .dot.filled {
+      background: var(--accent);
+      transform: scale(1.15);
+    }
+ 
+    .sessions-count {
+      font-family: 'DM Mono', monospace;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      min-width: 48px;
+      text-align: right;
+    }
+ 
+    /* Break mode color shift */
+    .break-mode {
+      --accent: var(--break-accent);
+    }
+ 
+    /* Pulse animation on tick */
+    @keyframes tick-pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.7; }
+      100% { opacity: 1; }
+    }
+ 
+    .ticking .timer-display {
+      animation: tick-pulse 2s ease-in-out infinite;
+    }
+ 
+    /* Ring animation on complete */
+    @keyframes ring-shake {
+      0%, 100% { transform: rotate(0deg); }
+      10% { transform: rotate(-4deg); }
+      20% { transform: rotate(4deg); }
+      30% { transform: rotate(-3deg); }
+      40% { transform: rotate(3deg); }
+      50% { transform: rotate(-2deg); }
+      60% { transform: rotate(2deg); }
+      70%, 90% { transform: rotate(0deg); }
+    }
+ 
+    .complete .timer-display {
+      animation: ring-shake 0.8s ease;
+    }
+  </style>
+</head>
+<body>
+ 
+<div class="card" id="app">
+  <!-- Mode Toggle -->
+  <div class="mode-toggle" role="tablist" aria-label="Timer mode">
+    <div class="mode-slider" id="slider"></div>
+    <button class="mode-btn active" id="btn-focus" role="tab" onclick="setMode('focus')">Focus</button>
+    <button class="mode-btn" id="btn-break" role="tab" onclick="setMode('break')">Break</button>
+  </div>
+ 
+  <!-- Timer -->
+  <div class="timer-area">
+    <span class="mode-label" id="mode-label">Focus Time</span>
+    <div class="timer-display" id="timer-display">25:00</div>
+  </div>
+ 
+  <!-- Progress -->
+  <div class="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+ 
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-icon" id="reset-btn" onclick="resetTimer()" title="Reset" aria-label="Reset timer">
+      ↺
+    </button>
+    <button class="btn btn-primary" id="start-btn" onclick="toggleTimer()">Start</button>
+    <button class="btn btn-icon" onclick="skipSession()" title="Skip" aria-label="Skip session">
+      ↠
+    </button>
+  </div>
+ 
+  <!-- Sessions -->
+  <div class="sessions">
+    <span class="sessions-label">Sessions</span>
+    <div class="sessions-dots" id="dots-wrap" aria-label="Sessions completed"></div>
+    <span class="sessions-count" id="session-count">0 / 4</span>
+  </div>
+</div>
+ 
+<script>
+  const MODES = {
+    focus: { label: 'Focus Time', duration: 25 * 60, btnText: 'Focus' },
+    break: { label: 'Short Break', duration: 5 * 60, btnText: 'Break' },
+  };
+ 
+  let mode = 'focus';
+  let totalSeconds = MODES.focus.duration;
+  let secondsLeft = totalSeconds;
+  let running = false;
+  let interval = null;
+  let sessions = 0;
+  const MAX_SESSIONS = 4;
+ 
+  const display = document.getElementById('timer-display');
+  const modeLabel = document.getElementById('mode-label');
+  const progressBar = document.getElementById('progress-bar');
+  const startBtn = document.getElementById('start-btn');
+  const slider = document.getElementById('slider');
+  const app = document.getElementById('app');
+  const dotsWrap = document.getElementById('dots-wrap');
+  const sessionCount = document.getElementById('session-count');
+ 
+  function formatTime(s) {
+    const m = Math.floor(s / 60).toString().padStart(2, '0');
+    const sec = (s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+ 
+  function updateDisplay() {
+    display.textContent = formatTime(secondsLeft);
+    const pct = (secondsLeft / totalSeconds) * 100;
+    progressBar.style.width = pct + '%';
+  }
+ 
+  function updateDots() {
+    dotsWrap.innerHTML = '';
+    for (let i = 0; i < MAX_SESSIONS; i++) {
+      const dot = document.createElement('div');
+      dot.className = 'dot' + (i < sessions ? ' filled' : '');
+      dotsWrap.appendChild(dot);
+    }
+    sessionCount.textContent = `${sessions} / ${MAX_SESSIONS}`;
+  }
+ 
+  function setMode(m) {
+    if (running) toggleTimer();
+    mode = m;
+    totalSeconds = MODES[m].duration;
+    secondsLeft = totalSeconds;
+ 
+    document.getElementById('btn-focus').classList.toggle('active', m === 'focus');
+    document.getElementById('btn-break').classList.toggle('active', m === 'break');
+    slider.classList.toggle('break', m === 'break');
+    modeLabel.textContent = MODES[m].label;
+ 
+    app.classList.toggle('break-mode', m === 'break');
+ 
+    updateDisplay();
+    startBtn.textContent = 'Start';
+    app.classList.remove('ticking', 'complete');
+  }
+ 
+  function toggleTimer() {
+    if (running) {
+      clearInterval(interval);
+      running = false;
+      startBtn.textContent = 'Resume';
+      app.classList.remove('ticking');
+    } else {
+      running = true;
+      startBtn.textContent = 'Pause';
+      app.classList.add('ticking');
+      app.classList.remove('complete');
+      interval = setInterval(tick, 1000);
+    }
+  }
+ 
+  function tick() {
+    if (secondsLeft <= 0) {
+      clearInterval(interval);
+      running = false;
+      app.classList.remove('ticking');
+      app.classList.add('complete');
+      startBtn.textContent = 'Start';
+ 
+      if (mode === 'focus') {
+        sessions = Math.min(sessions + 1, MAX_SESSIONS);
+        if (sessions >= MAX_SESSIONS) sessions = 0;
+        updateDots();
+      }
+ 
+      // Auto switch modes
+      setTimeout(() => {
+        setMode(mode === 'focus' ? 'break' : 'focus');
+      }, 800);
+      return;
+    }
+    secondsLeft--;
+    updateDisplay();
+  }
+ 
+  function resetTimer() {
+    clearInterval(interval);
+    running = false;
+    secondsLeft = totalSeconds;
+    startBtn.textContent = 'Start';
+    app.classList.remove('ticking', 'complete');
+    updateDisplay();
+  }
+ 
+  function skipSession() {
+    clearInterval(interval);
+    running = false;
+    secondsLeft = 0;
+    app.classList.remove('ticking', 'complete');
+ 
+    if (mode === 'focus') {
+      sessions = Math.min(sessions + 1, MAX_SESSIONS);
+      if (sessions >= MAX_SESSIONS) sessions = 0;
+      updateDots();
+    }
+ 
+    setTimeout(() => setMode(mode === 'focus' ? 'break' : 'focus'), 100);
+  }
+ 
+  // Init
+  updateDisplay();
+  updateDots();
+</script>
+</body>
+</html>
+ 
